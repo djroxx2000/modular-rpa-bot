@@ -1,5 +1,5 @@
-// Utilities
-const downloadFile = async (url) => {
+// Runtime Utilities
+exports.downloadFile = async (url) => {
 	const res = await axios({
 		url: url,
 		method: 'GET',
@@ -13,6 +13,24 @@ const downloadFile = async (url) => {
 	// link.click();
 	return res.data;
 };
+
+exports.registerSW = async () => {
+	if (navigator && 'serviceWorker' in navigator) {
+		try {
+			await navigator.serviceWorker.register(data.serviceWorkerPath);
+		} catch (e) {
+			console.log(e);
+			alert('ServiceWorker registration failed! No offline support available');
+		}
+	} else {
+		console.log('No service worker API available');
+	}
+};
+
+// TODO: Find correct puppeteer flags to register SW with (headless: false)
+window.addEventListener('load', (_) => {
+	registerSW();
+});
 
 // const initialConfig =
 `(async () => {`;
@@ -41,12 +59,8 @@ try {
 const startLink = `dummyStartLinkReference`;
 // initialConfig Ends
 
-// const downloadFileFromLink =
-
 // const closingConfig =
 
 `})();`;
 
 // closingConfig ends
-
-module.exports = downloadFile;
