@@ -4,7 +4,6 @@ const {
 	askQuestion,
 	validateLink,
 	initAndGetConfigs,
-	getPageId,
 	exposePageFunction,
 	networkRequest,
 } = require('./utility/utility');
