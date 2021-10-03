@@ -12,8 +12,8 @@ const {
 	// TODO: Take more relevant console input before launching browser
 	const configData = initAndGetConfigs();
 	let answer = await askQuestion('Starting point (URL): ');
-	validateLink(answer);
-	startLink = answer;
+	let url = validateLink(answer);
+	startLink = url;
 
 	const browser = await puppeteer.launch(configData.browserConfig);
 	await browser

@@ -54,8 +54,9 @@ const validateLink = (url) => {
 	);
 	if (!isValid) {
 		console.log('Invalid start link!');
-		process.exit();
+		url = 'chrome://newtab';
 	}
+	return url;
 };
 
 const initAndGetConfigs = () => {
