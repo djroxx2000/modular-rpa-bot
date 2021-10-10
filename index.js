@@ -1,4 +1,5 @@
 const puppeteer = require('puppeteer');
+const { evalFunctions } = require('./utility/eventhandlers')
 const {
 	handleBrowserShutdown,
 	askQuestion,
@@ -20,6 +21,7 @@ const {
 		.defaultBrowserContext()
 		.overridePermissions(startLink, ['clipboard-read', 'clipboard-write']);
 	const page = await browser.newPage();
+	await page.setBypassCSP(true);
 	await page._client.send('Network.setBypassServiceWorker', { bypass: true });
 
 	const pageEvents = {};
@@ -27,84 +29,46 @@ const {
 
 	await page.evaluateOnNewDocument(
 		(data) => {
+			console.log(data);
 			const types = data.types;
+			const createEventObject = eval(data.evalFunctions.createEventObject);
+			const addClipboardEventFields = eval(data.evalFunctions.addClipboardEventFields);
+			const addPointerEventFields = eval(data.evalFunctions.addPointerEventFields);
+			const handleFormClick = eval(data.evalFunctions.handleFormClick);
+			const handleInput = eval(data.evalFunctions.handleInput);
+			const handleSelect = eval(data.evalFunctions.handleSelect);
+			const getPathFromRoot = eval(data.evalFunctions.getPathFromRoot);
 
-			function handleInput(e, eventObject) {
-				console.log('handling input');
-				if (e.target.value !== '') {
-					eventObject.isForm = true;
-					eventObject.inputValue = e.target.value;
-					// e.target.removeAllListeners('focusout');
-					window.documentClick(eventObject);
-				}
-			}
+			// const pathFromRoot = (uid, node, key) => {
+			// 	// BFS from root - take each child - 0, 1, 2,... children.length & generated unique string
+			// 	// UID will be seperated by #, so split on # to unfold
+			// 	if(node.children.length) {
+			// 		const children = [...node.children];
+			// 		for(var i = 0; i < children.length; i++){
+			// 				const child = children[i];
+			// 				node = child;
+			// 				uid += `${i}#`;
+			// 				if(child === key) {
+			// 						return {uid, found: true};
+			// 				}
+			// 				_pathFromRoot = pathFromRoot(uid, node, key);
+			// 				// If key is found return uid object
+			// 				if(_pathFromRoot.found) return _pathFromRoot;
+			// 				else uid = _pathFromRoot.uid;
+			// 		}
+			// 	}
+			// 	// Reached leaf node of 1 branch without finding key
+			// 	tokens = uid.split("#");
+			// 	// Remove second last index - coz last val in split is "" by default
+			// 	if(tokens.length) {
+			// 			tokens.splice(tokens.length - 2, 1);
+			// 	} else {
+			// 			throw new Error("Error building UUID");
+			// 	}
+			// 	returnVal = tokens.join("#");
+			// 	return {uid: returnVal, found: false};
+			// }
 
-			function handleSelect(e, eventObject) {
-				// TODO: Handle select tags
-				e.target.removeAllListeners('focusout');
-			}
-
-			function addPointerEventFields(pointerObj, event) {
-				pointerObj.coordinates = [event.clientX, event.clientY];
-				return pointerObj;
-			}
-
-			async function addClipboardEventFields(clipboardObj) {
-				return new Promise(async (resolve) => {
-					let data = await navigator.clipboard.readText();
-					resolve(data);
-				}).then((textData) => {
-					clipboardObj.clipboardData = textData;
-					return clipboardObj;
-				});
-			}
-
-			function checkFormClick(eventObject, event, type) {
-				if (type !== 'click') {
-					return eventObject;
-				}
-				if (event.target.tagName == 'INPUT') {
-					console.log('input');
-					event.target.addEventListener('focusout', (e) => {
-						console.log('focusout');
-						handleInput(e, eventObject);
-					});
-					return;
-				}
-				if (event.target.tagName == 'select') {
-					event.target.addEventListener('focusout', (e) => {
-						handleSelect(e, eventObject);
-					});
-					return;
-				}
-				return eventObject;
-			}
-
-			async function createEventObject(event, type) {
-				eventObject = {};
-				eventObject.eventType = type;
-				eventObject.location = window.location.href;
-				eventObject.targetElement = {};
-				eventObject.targetElement.classes = event.target.getAttribute('class');
-				eventObject.targetElement.ids = event.target.getAttribute('id');
-				eventObject.targetElement.tag = event.target.tagName;
-				switch (type) {
-					case 'click':
-						eventObject = addPointerEventFields(eventObject, event);
-						eventObject = checkFormClick(eventObject, event, type);
-						if (eventObject == null) {
-							return;
-						}
-						break;
-					case 'contextmenu':
-						eventObject = addPointerEventFields(eventObject, event);
-						break;
-					case 'copy':
-						eventObject = await addClipboardEventFields(eventObject);
-						break;
-				}
-				return eventObject;
-			}
 			for (let type of types) {
 				window.addEventListener(type, async (e) => {
 					console.log(e);
@@ -119,9 +83,15 @@ const {
 		{
 			serviceWorkerPath: configData.serviceWorkerPath,
 			types: configData.eventTypes,
+			evalFunctions
 		} // TODO: Make customizable via console
 	);
-	await page.goto(startLink);
+	try {
+		await page.goto(startLink);	
+	} catch (error) {
+		console.error(error);
+		await page.goto('chrome://newtab')
+	}
 
 	let closeWait = false;
 	const handlePageClose = async (_) => {
