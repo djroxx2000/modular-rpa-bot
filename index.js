@@ -39,36 +39,6 @@ const {
 			const handleSelect = eval(data.evalFunctions.handleSelect);
 			const getPathFromRoot = eval(data.evalFunctions.getPathFromRoot);
 
-			// const pathFromRoot = (uid, node, key) => {
-			// 	// BFS from root - take each child - 0, 1, 2,... children.length & generated unique string
-			// 	// UID will be seperated by #, so split on # to unfold
-			// 	if(node.children.length) {
-			// 		const children = [...node.children];
-			// 		for(var i = 0; i < children.length; i++){
-			// 				const child = children[i];
-			// 				node = child;
-			// 				uid += `${i}#`;
-			// 				if(child === key) {
-			// 						return {uid, found: true};
-			// 				}
-			// 				_pathFromRoot = pathFromRoot(uid, node, key);
-			// 				// If key is found return uid object
-			// 				if(_pathFromRoot.found) return _pathFromRoot;
-			// 				else uid = _pathFromRoot.uid;
-			// 		}
-			// 	}
-			// 	// Reached leaf node of 1 branch without finding key
-			// 	tokens = uid.split("#");
-			// 	// Remove second last index - coz last val in split is "" by default
-			// 	if(tokens.length) {
-			// 			tokens.splice(tokens.length - 2, 1);
-			// 	} else {
-			// 			throw new Error("Error building UUID");
-			// 	}
-			// 	returnVal = tokens.join("#");
-			// 	return {uid: returnVal, found: false};
-			// }
-
 			for (let type of types) {
 				window.addEventListener(type, async (e) => {
 					console.log(e);
