@@ -1,75 +1,180 @@
 const puppeteer = require('puppeteer');
-const fs = require('fs');
-
-const dir = __dirname + '/userdata';
-if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, 0744);
-}
-
-const startLink = "https://google.co.in";
+const { evalFunctions } = require('./utility/eventhandlers')
+const {
+	handleBrowserShutdown,
+	askQuestion,
+	validateLink,
+	initAndGetConfigs,
+	exposePageFunction,
+	networkRequest,
+} = require('./utility/utility');
 
 (async () => {
-    const browser = await puppeteer.launch({
-        headless: false,
-        userDataDir: dir
-    });
-    const page = await browser.newPage();
-    // const client = page._client;
-    await page.exposeFunction('documentClick', (e) => {
-        console.log(e);
-    });
-    await page.evaluateOnNewDocument((type) => {
-        function createClickObject(event) {
-            let clickObject = {};
-            clickObject.coordinates = [event.clientX, event.clientY];
-            clickObject.targetElement = {};
-            clickObject.targetElement.classes = event.target.getAttribute('class');
-            clickObject.targetElement.id = event.target.getAttribute('id');
-            clickObject.targetElement.tag = event.target.tagName;
-            return clickObject;
-        }
+	// TODO: Take more relevant console input before launching browser
+	const configData = initAndGetConfigs();
+	let answer = await askQuestion('Starting point (URL): ');
+	let url = validateLink(answer);
+	startLink = url;
 
-        function pathFromRoot(uid, node, key) {
-            // BFS from root - take each child - 0, 1, 2,... children.length & generated unique string
-            // UID will be seperated by #, so split on # to unfold
+	const browser = await puppeteer.launch(configData.browserConfig);
+	await browser
+		.defaultBrowserContext()
+		.overridePermissions(startLink, ['clipboard-read', 'clipboard-write']);
+	const page = await browser.newPage();
+	await page.setBypassCSP(true);
+	await page._client.send('Network.setBypassServiceWorker', { bypass: true });
 
-            if(node.children.length) {
-                const children = [...node.children];
-                for(var i = 0; i < children.length; i++){
-                    const child = children[i];
-                    node = child;
-                    uid += `${i}#`;
-                    if(child === key) {
-                        return {uid, found: true};
-                    }
-                    _pathFromRoot = pathFromRoot(uid, node, key);
-                    // If key is found return uid object
-                    if(_pathFromRoot.found) return _pathFromRoot;
-                    else uid = _pathFromRoot.uid;
-                }
-            }
+	const pageEvents = {};
+	await exposePageFunction(page, pageEvents);
 
-            // Reached leaf node of 1 branch without finding key
-            tokens = uid.split("#");
-            // Remove second last index - coz last val in split is "" by default
-            if(tokens.length) {
-                tokens.splice(tokens.length - 2, 1);
-            } else {
-                throw new Error("Error building UUID");
-            }
+	await page.evaluateOnNewDocument(
+		(data) => {
+			console.log(data);
+			const types = data.types;
+			const createEventObject = eval(data.evalFunctions.createEventObject);
+			const addClipboardEventFields = eval(data.evalFunctions.addClipboardEventFields);
+			const addPointerEventFields = eval(data.evalFunctions.addPointerEventFields);
+			const handleFormClick = eval(data.evalFunctions.handleFormClick);
+			const handleInput = eval(data.evalFunctions.handleInput);
+			const handleSelect = eval(data.evalFunctions.handleSelect);
+			const getPathFromRoot = eval(data.evalFunctions.getPathFromRoot);
 
-            returnVal = tokens.join("#");
+			// const pathFromRoot = (uid, node, key) => {
+			// 	// BFS from root - take each child - 0, 1, 2,... children.length & generated unique string
+			// 	// UID will be seperated by #, so split on # to unfold
+			// 	if(node.children.length) {
+			// 		const children = [...node.children];
+			// 		for(var i = 0; i < children.length; i++){
+			// 				const child = children[i];
+			// 				node = child;
+			// 				uid += `${i}#`;
+			// 				if(child === key) {
+			// 						return {uid, found: true};
+			// 				}
+			// 				_pathFromRoot = pathFromRoot(uid, node, key);
+			// 				// If key is found return uid object
+			// 				if(_pathFromRoot.found) return _pathFromRoot;
+			// 				else uid = _pathFromRoot.uid;
+			// 		}
+			// 	}
+			// 	// Reached leaf node of 1 branch without finding key
+			// 	tokens = uid.split("#");
+			// 	// Remove second last index - coz last val in split is "" by default
+			// 	if(tokens.length) {
+			// 			tokens.splice(tokens.length - 2, 1);
+			// 	} else {
+			// 			throw new Error("Error building UUID");
+			// 	}
+			// 	returnVal = tokens.join("#");
+			// 	return {uid: returnVal, found: false};
+			// }
 
-            return {uid: returnVal, found: false};
-        }
+			for (let type of types) {
+				window.addEventListener(type, async (e) => {
+					console.log(e);
+					let out = await createEventObject(e, type);
+					if (out == null) {
+						return;
+					}
+					window.documentClick(out);
+				});
+			}
+		},
+		{
+			serviceWorkerPath: configData.serviceWorkerPath,
+			types: configData.eventTypes,
+			evalFunctions
+		} // TODO: Make customizable via console
+	);
+	try {
+		await page.goto(startLink);	
+	} catch (error) {
+		console.error(error);
+		await page.goto('chrome://newtab')
+	}
 
-        window.addEventListener(type, (e) => {
-            console.log(e.target.tagName);
-            let out = createClickObject(e);
-            window.documentClick(out);
-            const _pathFromRoot = pathFromRoot("", document.documentElement, e.target);
-            console.log(_pathFromRoot);
-        });
-    }, 'click');
-    await page.goto(startLink);
+	let closeWait = false;
+	const handlePageClose = async (_) => {
+		// Debounce
+		if (closeWait !== false) {
+			return;
+		}
+		closeWait = setTimeout(() => {
+			closeWait = false;
+		}, 500);
+		try {
+			const pageList = await browser.pages();
+			const pageDetail = pageList.map((ele) => ele._target._targetInfo);
+			console.log('Page closed\n', pageDetail, '\n\n');
+		} catch (error) {
+			if (
+				error.message !=
+				'Protocol error (Target.attachToTarget): No target with given id found'
+			) {
+				console.log(error.message);
+			}
+		}
+	};
+
+	let openWait = false;
+	const handlePageOpen = async (_) => {
+		// Debounce
+		if (openWait !== false) {
+			return;
+		}
+		openWait = setTimeout(() => {
+			openWait = false;
+		}, 500);
+		try {
+			const pageList = await browser.pages();
+			const pageDetail = pageList.map((ele) => ele._target._targetInfo);
+			console.log('Page opened\n', pageDetail);
+		} catch (error) {
+			if (
+				error.message !=
+				'Protocol error (Target.attachToTarget): No target with given id found'
+			) {
+				console.log(error.message);
+			}
+		}
+	};
+
+	let changeWait = false;
+	const handleTargetChange = async (target) => {
+		// Debounce
+		if (changeWait !== false) {
+			return;
+		}
+		changeWait = setTimeout(() => {
+			changeWait = false;
+		}, 500);
+
+		try {
+			const pages = await browser.pages();
+			let changedPage = null;
+			for (let page of pages) {
+				if (page._target._targetInfo.targetId === target._targetInfo.targetId) {
+					changedPage = page;
+					break;
+				}
+			}
+		} catch (error) {
+			if (
+				error.message !=
+				'Protocol error (Target.attachToTarget): No target with given id found'
+			) {
+				console.log(error.message);
+			}
+		}
+	};
+
+	// TODO: Discard irrelevant requests
+	page.on('request', (evObject) => networkRequest(evObject, page, pageEvents));
+
+	browser.on('targetcreated', handlePageOpen);
+	browser.on('targetdestroyed', handlePageClose);
+	browser.on('targetchanged', handleTargetChange);
+	browser.on('disconnected', () => {
+		handleBrowserShutdown(pageEvents);
+	});
 })();
