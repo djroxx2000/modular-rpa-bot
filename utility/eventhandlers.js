@@ -1,36 +1,31 @@
 // Event Handlers
 
-const handleInput = (e, eventObject) => {
-  console.log('handling input');
+const handleInput = (e) => {
+  let eventObject = e.target.eventObject;
   if (e.target.value !== '') {
-    eventObject.isForm = true;
+    eventObject.type = 'form';
     eventObject.inputValue = e.target.value;
-    // e.target.removeAllListeners('focusout');
+    e.target.removeEventListener('focusout', handleInput);
     window.documentClick(eventObject);
   }
+  e.target.eventObject = null;
 }
 
-const handleSelect = (e, eventObject) => {
+const handleSelect = (e) => {
+  let eventObject = e.target.eventObject;
   // TODO: Handle select tags
-  e.target.removeAllListeners('focusout');
+  e.target.removeEventListener('focusout', handleInput);
+  e.target.eventObject = null;
 }
 
-const handleFormClick = (eventObject, event, type) => {
-  if (type !== 'click') {
-    return eventObject;
-  }
-  if (event.target.tagName == 'INPUT') {
-    console.log('input');
-    event.target.addEventListener('focusout', (e) => {
-      console.log('focusout');
-      handleInput(e, eventObject);
-    });
+const handleFormClick = (eventObject, e) => {
+  e.target.eventObject = eventObject;
+  if (e.target.tagName == 'INPUT') {
+    e.target.addEventListener('focusout', handleInput);
     return;
   }
-  if (event.target.tagName == 'select') {
-    event.target.addEventListener('focusout', (e) => {
-      handleSelect(e, eventObject);
-    });
+  if (e.target.tagName == 'SELECT') {
+    e.target.addEventListener('focusout', handleSelect);
     return;
   }
   return eventObject;
@@ -52,7 +47,7 @@ const createEventObject = async (event, type) => {
   switch (type) {
     case 'click':
       eventObject = addPointerEventFields(eventObject, event);
-      eventObject = handleFormClick(eventObject, event, type);
+      eventObject = handleFormClick(eventObject, event);
       if (eventObject == null) {
         return;
       }
@@ -72,7 +67,7 @@ const getPathFromRoot = (node) => {
   while(node) {
     let parent = node.parentElement;
     if (!parent) {
-      path = "HTML.0#" + path;
+      path = "HTML.0.0#" + path;
       break;
     }
     let eleIdx = -1, absIdx = -1;

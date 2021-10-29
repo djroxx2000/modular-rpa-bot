@@ -1,0 +1,3 @@
+const parseLogs = (log) => {
+  
+}

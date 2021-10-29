@@ -59,7 +59,7 @@ const {
 	try {
 		await page.goto(startLink);	
 	} catch (error) {
-		console.error(error);
+		console.log("Error in navigating to given link:", error.message);
 		await page.goto('chrome://newtab')
 	}
 
