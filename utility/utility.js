@@ -2,36 +2,30 @@ const process = require('process');
 const readline = require('readline');
 const path = require('path');
 const fs = require('fs');
+const { parseLogs } = require('./loganalyzer');
 
 // Page functions to be exposed
-const documentClick = (evObject, page, pageEvents) => {
-	const pageId = getPageId(page);
-	if (pageEvents[pageId] === undefined) {
-		pageEvents[pageId] = {
-			eventList: [],
-			requestList: [],
-		};
-	}
-	pageEvents[pageId].eventList.push(evObject);
+const userAction = (evObject, page, eventLog) => {
+	evObject.pageId = getPageId(page);
+	eventLog.eventList.push(evObject);
 };
 
-const exposedFunctions = { documentClick: documentClick };
+const exposedFunctions = { userAction: userAction };
 
-const handleBrowserShutdown = (pageEvents) => {
+const handleBrowserShutdown = (eventLog) => {
 	console.log('Browser shutdown');
-	for (let page in pageEvents) {
-		console.log('TargetId:', page);
-		console.log('Events:');
-		for (let event of pageEvents[page].eventList) {
-			console.log(event);
-		}
-		console.log('Network Requests:');
-		let count = 0;
-		for (let req of pageEvents[page].requestList) {
-			console.log(req.substring(0, 50));
-			if (count++ > 10) break;
-		}
+	console.log('Events:');
+	// console.log(eventLog.eventList);
+	for (let event of eventLog.eventList) {
+		console.log(event);
 	}
+	console.log('Network Requests:');
+	let count = 0;
+	for (let req of eventLog.reqList) {
+		console.log(req.substring(0, 50));
+		if (count++ > 10) break;
+	}
+	parseLogs(eventLog);
 };
 
 const askQuestion = (query) => {
@@ -82,24 +76,39 @@ const getPageId = (page) => {
 	return page._target._targetInfo.targetId;
 };
 
-const exposePageFunction = async (page, pageEvents) => {
+const exposePageFunction = async (page, eventLog) => {
 	for (let funcName in exposedFunctions) {
 		await page.exposeFunction(funcName, (evObject) =>
-			exposedFunctions[funcName](evObject, page, pageEvents)
+			exposedFunctions[funcName](evObject, page, eventLog)
 		);
 	}
 };
 
-const networkRequest = (evObject, page, pageEvents) => {
-	const pageId = getPageId(page);
-	if (pageEvents[pageId] === undefined) {
-		pageEvents[pageId] = {
-			eventList: [],
-			requestList: [],
-		};
-	}
-	pageEvents[pageId].requestList.push(evObject.url());
+const networkRequest = (evObject, page, eventLog) => {
+	evObject.pageId = getPageId(page);
+	eventLog.reqList.push(evObject.url());
 };
+
+const findClosestCommonParent = (lpath, rpath) => {
+	let lpath_split = lpath.split('#');
+	let rpath_split = rpath.split('#');
+	if (lpath_split.length != rpath_split.length) {
+		return null;
+	}
+	let i = 0
+	let parent = '';
+	while(i < lpath_split.length) {
+		if (lpath_split[i] != rpath_split[i]) {
+			break;
+		}
+		parent += lpath_split[i] + '#';
+		i++;
+	}
+	if(i >= lpath_split.length) {
+		return null;
+	}
+	return parent;
+}
 
 module.exports = {
 	handleBrowserShutdown,
@@ -109,6 +118,7 @@ module.exports = {
 	getPageId,
 	exposePageFunction,
 	networkRequest,
+	findClosestCommonParent,
 };
 
 /* Extras

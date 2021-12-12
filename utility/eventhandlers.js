@@ -3,10 +3,10 @@
 const handleInput = (e) => {
   let eventObject = e.target.eventObject;
   if (e.target.value !== '') {
-    eventObject.type = 'form';
+    eventObject.eventType = 'form';
     eventObject.inputValue = e.target.value;
     e.target.removeEventListener('focusout', handleInput);
-    window.documentClick(eventObject);
+    window.userAction(eventObject);
   }
   e.target.eventObject = null;
 }
@@ -37,7 +37,21 @@ const createEventObject = async (event, type) => {
   eventObject = {};
   eventObject.eventType = type;
   eventObject.location = window.location.href;
-
+  eventObject.selector = getSelector(event.target);
+  for (let prop in event) {
+    if (["number","string","boolean"].indexOf(typeof event[prop]) > -1 && 
+        ["AT_TARGET",
+        "BUBBLING_PHASE",
+        "CAPTURING_PHASE",
+        "NONE",
+        "DOM_KEY_LOCATION_STANDARD",
+        "DOM_KEY_LOCATION_LEFT",
+        "DOM_KEY_LOCATION_RIGHT",
+        "DOM_KEY_LOCATION_NUMPAD"].indexOf(prop) == -1) {
+      eventObject[prop] = event[prop];
+	  }
+  }
+  
   let path = getPathFromRoot(event.target);
   eventObject.targetElement = {};
   eventObject.targetElement.uid = path;
@@ -59,6 +73,7 @@ const createEventObject = async (event, type) => {
       eventObject = await addClipboardEventFields(eventObject);
       break;
   }
+  console.log(eventObject);
   return eventObject;
 }
 

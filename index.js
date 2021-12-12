@@ -24,8 +24,8 @@ const {
 	await page.setBypassCSP(true);
 	await page._client.send('Network.setBypassServiceWorker', { bypass: true });
 
-	const pageEvents = {};
-	await exposePageFunction(page, pageEvents);
+	const eventLog = { eventList: [], reqList: [] };
+	await exposePageFunction(page, eventLog);
 
 	await page.evaluateOnNewDocument(
 		(data) => {
@@ -39,6 +39,33 @@ const {
 			const handleSelect = eval(data.evalFunctions.handleSelect);
 			const getPathFromRoot = eval(data.evalFunctions.getPathFromRoot);
 
+			const getSelector = function(el, names) {
+				if (el === document || el === document.documentElement) return "document";
+				if (el === document.body) return "body";
+				if (typeof names === "undefined") var names = [];
+				if (el.id) {
+					names.unshift('#'+el.id);
+					return names.join(" > ");
+				} else if (el.className) {
+					var arrNode = [].slice.call(el.parentNode.getElementsByClassName(el.className));
+					var classSelector = el.className.split(" ").join(".");
+					if (arrNode.length == 1) {
+						names.unshift(el.tagName.toLowerCase()+"."+classSelector);
+					} else {
+						for (var c=1,e=el;e.previousElementSibling;e=e.previousElementSibling,c++); 
+						names.unshift(el.tagName.toLowerCase()+":nth-child("+c+")");
+					}
+				} else {
+					for (var c=1,e=el;e.previousElementSibling;e=e.previousElementSibling,c++); 
+					names.unshift(el.tagName.toLowerCase()+":nth-child("+c+")");
+				}
+				
+				if (el.parentNode !== document.body) {
+					getSelector(el.parentNode, names) 
+				}
+				return names.join(" > ");
+			};
+
 			for (let type of types) {
 				window.addEventListener(type, async (e) => {
 					console.log(e);
@@ -46,7 +73,7 @@ const {
 					if (out == null) {
 						return;
 					}
-					window.documentClick(out);
+					window.userAction(out);
 				});
 			}
 		},
@@ -139,12 +166,12 @@ const {
 	};
 
 	// TODO: Discard irrelevant requests
-	page.on('request', (evObject) => networkRequest(evObject, page, pageEvents));
+	page.on('request', (evObject) => networkRequest(evObject, page, eventLog));
 
 	browser.on('targetcreated', handlePageOpen);
 	browser.on('targetdestroyed', handlePageClose);
 	browser.on('targetchanged', handleTargetChange);
 	browser.on('disconnected', () => {
-		handleBrowserShutdown(pageEvents);
+		handleBrowserShutdown(eventLog);
 	});
 })();
