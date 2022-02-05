@@ -2,3 +2,4 @@ userdata
 node_modules
 npm-debug.log
 *.pdf
+.DS_STORE
