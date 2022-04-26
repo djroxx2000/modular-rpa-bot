@@ -1,10 +1,12 @@
 const puppeteer = require('puppeteer');
 const { evalFunctions } = require('./utility/eventhandlers');
 const {
+	handleBrowserShutdown,
 	askQuestion,
 	validateLink,
 	initAndGetConfigs,
 	exposePageFunction,
+	networkRequest,
 } = require('./utility/utility');
 
 (async () => {
@@ -22,25 +24,40 @@ const {
 	await page.setBypassCSP(true);
 	await page._client.send('Network.setBypassServiceWorker', { bypass: true });
 
-	const pageEvents = { data: [] };
+	const pageEvents = { events: [], requests: [], data: [] };
 	await exposePageFunction(page, pageEvents);
 
 	const pageEvaluateTasks = (data) => {
-		console.log('Passed data:', data);
+		console.log(data);
+		// const types = data.types;
+		// const createEventObject = eval(data.evalFunctions.createEventObject);
+		// const addClipboardEventFields = eval(data.evalFunctions.addClipboardEventFields);
+		// const addPointerEventFields = eval(data.evalFunctions.addPointerEventFields);
+		// const handleFormClick = eval(data.evalFunctions.handleFormClick);
+		// const handleInput = eval(data.evalFunctions.handleInput);
+		// const handleSelect = eval(data.evalFunctions.handleSelect);
+		// const getPathFromRoot = eval(data.evalFunctions.getPathFromRoot);
 
-		// include jquery
+		// for (let type of types) {
+		// 	window.addEventListener(type, async (e) => {
+		// 		console.log(e);
+		// 		let out = await createEventObject(e, type);
+		// 		if (out == null) {
+		// 			return;
+		// 		}
+		// 		window.saveEvent(out);
+		// 	});
+		// }
 		const scriptJQuery = document.createElement('script');
 		scriptJQuery.type = 'text/javascript';
 		scriptJQuery.src = 'https://code.jquery.com/jquery-3.4.1.js';
 		scriptJQuery.integrity = 'sha256-WpOohJOqMqqyKL9FccASB9O0KwACQJpFTUBLTYOVvVU=';
 		scriptJQuery.crossOrigin = 'anonymous';
 
-		// include replay script
 		const scriptReplay = document.createElement('script');
 		scriptReplay.type = 'text/javascript';
 		scriptReplay.src = 'http://127.0.0.1:5500/alt/js-replay/replay.js';
 
-		// Add script on page load and start recording
 		window.addEventListener('load', (ev) => {
 			console.log(ev);
 			document.body.appendChild(scriptJQuery);
@@ -50,36 +67,8 @@ const {
 			}, 500);
 		});
 
-		// stop recording and pass data back to nodejs on close
 		window.addEventListener('beforeunload', (ev) => {
 			jsReplay.record.stop();
-		});
-	};
-
-	const pagePerformTasks = (events) => {
-		console.log('Passed data:', events.data);
-
-		// include jquery
-		const scriptJQuery = document.createElement('script');
-		scriptJQuery.type = 'text/javascript';
-		scriptJQuery.src = 'https://code.jquery.com/jquery-3.4.1.js';
-		scriptJQuery.integrity = 'sha256-WpOohJOqMqqyKL9FccASB9O0KwACQJpFTUBLTYOVvVU=';
-		scriptJQuery.crossOrigin = 'anonymous';
-
-		// include replay script
-		const scriptReplay = document.createElement('script');
-		scriptReplay.type = 'text/javascript';
-		scriptReplay.src = 'http://127.0.0.1:5500/alt/js-replay/replay.js';
-
-		// Add script on page load and start recording
-		window.addEventListener('load', (ev) => {
-			console.log(ev);
-			document.body.appendChild(scriptJQuery);
-			document.body.appendChild(scriptReplay);
-			setTimeout(() => {
-				const widgetTest = new jsReplay.playback(events.data[0]);
-				widgetTest.start();
-			}, 500);
 		});
 	};
 
@@ -89,11 +78,11 @@ const {
 		evalFunctions,
 	}; // TODO: Make customizable via console
 
-	const startRecordOnNewPage = async (page, tasks, data) => {
-		await page.evaluateOnNewDocument(tasks, data);
+	const startRecordOnNewPage = async (page) => {
+		await page.evaluateOnNewDocument(pageEvaluateTasks, pageEvaluateData);
 	};
 
-	startRecordOnNewPage(page, pageEvaluateTasks, pageEvaluateData);
+	startRecordOnNewPage(page);
 
 	try {
 		await page.goto(startLink);
@@ -177,37 +166,18 @@ const {
 		}
 	};
 
+	// TODO: Discard irrelevant requests
+	// page.on('request', (evObject) => networkRequest(evObject, page, pageEvents));
+
 	page.on('close', async (evObject) => {
 		console.log('page close: ', page._target._targetInfo.targetId, evObject);
 		console.log(pageEvents);
 	});
 
-	const handleBrowserShutdown = async (events, startLink) => {
-		let answer = await askQuestion('Start playback? (Y/N) ');
-		if (answer != 'Y') {
-			console.log(answer);
-			return;
-		}
-		const browser = await puppeteer.launch(configData.browserConfig);
-		await browser
-			.defaultBrowserContext()
-			.overridePermissions(startLink, ['clipboard-read', 'clipboard-write']);
-		const page = await browser.newPage();
-		await page.setBypassCSP(true);
-		await page._client.send('Network.setBypassServiceWorker', { bypass: true });
-		page.evaluateOnNewDocument(pagePerformTasks, events);
+	// browser.on('targetcreated', handlePageOpen);
+	// browser.on('targetdestroyed', handlePageClose);
+	// browser.on('targetchanged', handleTargetChange);
 
-		try {
-			await page.goto(startLink);
-		} catch (error) {
-			console.log('Error in navigating to given link:', error.message);
-			await page.goto('chrome://newtab');
-		}
-	};
-
-	browser.on('targetcreated', handlePageOpen);
-	browser.on('targetdestroyed', handlePageClose);
-	browser.on('targetchanged', handleTargetChange);
 	browser.on('disconnected', () => {
 		handleBrowserShutdown(pageEvents, startLink);
 	});

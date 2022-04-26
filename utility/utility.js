@@ -2,36 +2,59 @@ const process = require('process');
 const readline = require('readline');
 const path = require('path');
 const fs = require('fs');
+const { parseLogs } = require('./loganalyzer.js');
+const puppeteer = require('puppeteer');
 
 // Page functions to be exposed
-const documentClick = (evObject, page, pageEvents) => {
+const saveEvent = (evObject, page, pageEvents) => {
 	const pageId = getPageId(page);
-	if (pageEvents[pageId] === undefined) {
-		pageEvents[pageId] = {
-			eventList: [],
-			requestList: [],
-		};
-	}
-	pageEvents[pageId].eventList.push(evObject);
+	// if (pageEvents[pageId] === undefined) {
+	// 	pageEvents[pageId] = {
+	// 		eventList: [],
+	// 		requestList: [],
+	// 	};
+	// }
+	evObject.targetPageId = pageId;
+	pageEvents.events.push(evObject);
 };
 
-const exposedFunctions = { documentClick: documentClick };
+const saveReplayData = (savedEvents, eventLog) => {
+	eventLog.data.push(savedEvents);
+	console.log('Printing events:', eventLog.data);
+};
 
-const handleBrowserShutdown = (pageEvents) => {
+const exposedFunctions = { saveEvent: saveEvent };
+
+const handleBrowserShutdown = (pageEvents, startLink) => {
 	console.log('Browser shutdown');
-	for (let page in pageEvents) {
-		console.log('TargetId:', page);
-		console.log('Events:');
-		for (let event of pageEvents[page].eventList) {
-			console.log(event);
-		}
-		console.log('Network Requests:');
-		let count = 0;
-		for (let req of pageEvents[page].requestList) {
-			console.log(req.substring(0, 50));
-			if (count++ > 10) break;
-		}
-	}
+	let logData = [];
+	// for (let event of pageEvents.events) {
+	// 	logData.push({ pageTargetId: page });
+	// 	logData[logData.length - 1].events = [];
+	// 	for (let event of pageEvents[page].eventList) {
+	// 		logData[logData.length - 1].events.push(event);
+	// 	}
+	// 	logData[logData.length - 1].networkReq = [];
+	// 	let count = 0;
+	// 	for (let req of pageEvents[page].requestList) {
+	// 		logData[logData.length - 1].networkReq.push(req);
+	// 		if (count++ > 10) break;
+	// 	}
+	console.log(pageEvents);
+	fs.writeFileSync('file.log', JSON.stringify(pageEvents), (err) => {
+		console.log(err.message);
+	});
+	startNewSession(pageEvents.data, startLink);
+};
+
+const startNewSession = async (logs, startLink) => {
+	const browser = await puppeteer.launch(configData.browserConfig);
+	await browser
+		.defaultBrowserContext()
+		.overridePermissions(startLink, ['clipboard-read', 'clipboard-write']);
+	const page = await browser.newPage();
+	await page.setBypassCSP(true);
+	await page._client.send('Network.setBypassServiceWorker', { bypass: true });
 };
 
 const askQuestion = (query) => {
@@ -88,17 +111,20 @@ const exposePageFunction = async (page, pageEvents) => {
 			exposedFunctions[funcName](evObject, page, pageEvents)
 		);
 	}
+	await page.exposeFunction('saveReplayData', (savedEvents) => {
+		saveReplayData(savedEvents, pageEvents);
+	});
 };
 
 const networkRequest = (evObject, page, pageEvents) => {
 	const pageId = getPageId(page);
-	if (pageEvents[pageId] === undefined) {
-		pageEvents[pageId] = {
-			eventList: [],
-			requestList: [],
-		};
-	}
-	pageEvents[pageId].requestList.push(evObject.url());
+	// if (pageEvents[pageId] === undefined) {
+	// 	pageEvents[pageId] = {
+	// 		eventList: [],
+	// 		requestList: [],
+	// 	};
+	// }
+	pageEvents.requests.push({ pageTargetId: pageId, url: evObject.url() });
 };
 
 module.exports = {
