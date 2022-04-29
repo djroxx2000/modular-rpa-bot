@@ -1,10 +1,4 @@
 /*
- * 	jsReplay (v0.0.1)
- * 	https://github.com/elliotnb/js-replay
- *
- * 	Licensed under the MIT license:
- * 	http://www.opensource.org/licenses/MIT
- *
  *	jsReplay is a record and playback tool used for functional regression testing. It is a singleton with two modes of operation: record and playback.
  *
  *	In record mode, jsReplay will record all user events that occur on the page and log them silently in the background. When the recording is stopped,
@@ -226,48 +220,6 @@ var jsReplay = (function () {
 				console.log(this.window.height);
 				console.log(self.window.height);
 
-				/*	this.window
-						Object, stores the width and height attributes that the playback JSON file was designed to run in. It is essential
-						that the playback occur in a web browser window with the same dimensions as the original test run recording.
-				*/
-				// this.window = null;
-
-				/*	Property: this.userEventLog
-						Array of events, this is where the recorded events are stored. Each event contains most standard event properties as well as 
-						some additional properties (selector and text) used for identifying the element and the contents of the element. The events are ordered
-						oldest to newest (i.e., the events that were recorded first are at the beginning of the array).
-				*/
-				// this.userEventLog = null;
-
-				// $.ajax({
-				// 	url: testRunURL,
-				// 	success: function(playbackData) {
-
-				// 		// Validate the playback file we've received
-				// 		if (typeof playbackData == "object") {
-
-				// 			// We won't run the playback file without the window attributes (i.e., browser window dimensions)
-				// 			if (typeof playbackData.window == "object") {
-				// 				self.window = playbackData.window;
-				// 			} else {
-				// 				throw new Error("Playback JSON file does not contain required window attributes.");
-				// 			}
-
-				// 			// Verify that the event_log is an array, if it's not an array, then this is an invalid playback JSON file.
-				// 			if (Array.isArray(playbackData.event_log)) {
-				// 				self.userEventLog = playbackData.event_log;
-				// 			} else {
-				// 				throw new Error("Event log in the JSON playback file is not an array.");
-				// 			}
-				// 		} else {
-				// 			throw new Error("Received an invalid playback JSON file.");
-				// 		}
-				// 	},
-				// 	error: function(jqXHR, textStatus, errorThrown) {
-				// 		throw new Error("Failed to retrieve the playback JSON file.");
-				// 	},
-				// 	dataType: "json"
-				// });
 			};
 
 			constructor.prototype = {

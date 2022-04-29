@@ -5,6 +5,47 @@ const fs = require('fs');
 const { parseLogs } = require('./loganalyzer.js');
 const puppeteer = require('puppeteer');
 
+const queriesLite = {
+	create: 'CREATE TABLE IF NOT EXISTS Events (id Integer PRIMARY KEY AUTOINCREMENT not NULL, eventLog TEXT not NULL, title text, description text, startLink text not NULL, dtCreated text not NULL)',
+	select: 'SELECT * FROM Events',
+	selectOne: 'SELECT * FROM Events WHERE id = ?',
+	insert: 'INSERT INTO Events (eventLog, title, description, startLink, dtCreated) VALUES (?, ?, ?, ?, ?)',
+	count: 'SELECT COUNT(id) as count FROM Events;',
+	delete: 'DELETE FROM Events WHERE id < ',
+};
+
+const queries = {
+	create: 'CREATE TABLE IF NOT EXISTS Events (id INTEGER PRIMARY KEY AUTO_INCREMENT NOT NULL, eventLog MEDIUMTEXT NOT NULL, title VARCHAR(50), description varchar(500), startLink varchar(256), dtCreated varchar(100));',
+	select: 'SELECT * FROM Events',
+	selectOne: 'SELECT * FROM Events WHERE id = ?',
+	insert: 'INSERT INTO Events (eventLog, title, description, startLink, dtCreated) VALUES (?, ?, ?, ?, ?)',
+	count: 'SELECT COUNT(id) as count FROM Events;',
+	delete: 'DELETE FROM Events WHERE id < ',
+};
+
+const getUTCTimeObj = () => {
+	let date = new Date();
+	return {
+		year: date.getUTCFullYear(),
+		month: date.getUTCMonth(),
+		date: date.getUTCDate(),
+		hours: date.getUTCHours(),
+		minutes: date.getUTCMinutes(),
+		seconds: date.getUTCSeconds(),
+	};
+};
+
+const getLocalTimeFromUTCTime = (utcTime) => {
+	const curTime = new Date();
+	curTime.setUTCFullYear(utcTime.year);
+	curTime.setUTCMonth(utcTime.month);
+	curTime.setUTCDate(utcTime.date);
+	curTime.setUTCHours(utcTime.hours);
+	curTime.setUTCMinutes(utcTime.minutes);
+	curTime.setUTCSeconds(utcTime.seconds);
+	return curTime;
+};
+
 // Page functions to be exposed
 const saveEvent = (evObject, page, pageEvents) => {
 	const pageId = getPageId(page);
@@ -88,7 +129,7 @@ const initAndGetConfigs = () => {
 		browserConfig: {
 			headless: false,
 			userDataDir: '',
-			args: ['--window-size=800,700', '--enable-features=NetworkService'],
+			args: ['--window-size=1280,720', '--enable-features=NetworkService'],
 			ignoreHTTPSErrors: true,
 		},
 		serviceWorkerPath: path.resolve('./service-worker.js'),
@@ -135,6 +176,10 @@ module.exports = {
 	getPageId,
 	exposePageFunction,
 	networkRequest,
+	queries,
+	queriesLite,
+	getUTCTimeObj,
+	getLocalTimeFromUTCTime,
 };
 
 /* Extras

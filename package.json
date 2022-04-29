@@ -11,6 +11,9 @@
   "license": "ISC",
   "dependencies": {
     "axios": "^0.21.1",
-    "puppeteer": "^10.2.0"
+    "mysql2": "^2.3.3",
+    "puppeteer": "^10.2.0",
+    "sqlite": "^4.1.1",
+    "sqlite3": "^5.0.6"
   }
 }
